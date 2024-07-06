@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Digital Business Card</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            display: flex;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-section {
+            flex: 1;
+            padding-right: 20px;
+        }
+        .preview-section {
+            flex: 1;
+            position: sticky;
+            top: 20px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .social-media-entry, .product-entry {
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        .remove-btn {
+            background-color: #f44336;
+        }
+        .preview-card {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .preview-logo, .preview-profile-pic {
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: cover;
+            margin-bottom: 10px;
+        }
+        .preview-social-links a, .preview-products a {
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            background-color: #ddd;
+            color: #333;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-section">
+            <h1>Create Your Digital Business Card</h1>
+            {% if current_user.is_authenticated %}
+                <p>Welcome, {{ current_user.username }}! <a href="{{ url_for('logout') }}">Logout</a></p>
+                <form id="businessCardForm" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <h2>Personal Information</h2>
+                    <label for="firstName">First Name:</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                    <label for="lastName">Last Name:</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                    <label for="jobTitle">Job Title:</label>
+                    <input type="text" id="jobTitle" name="jobTitle" required>
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                    <label for="phone">Phone:</label>
+                    <input type="tel" id="phone" name="phone" required>
+                    <h2>Business Logo and Profile Picture</h2>
+                    <label for="logo">Business Logo:</label>
+                    <input type="file" id="logo" name="logo" accept="image/*">
+                    <label for="profilePic">Profile Picture:</label>
+                    <input type="file" id="profilePic" name="profile_picture" accept="image/*">
+                    <h2>Social Media</h2>
+                    <div id="socialMediaEntries"></div>
+                    <button type="button" id="addSocialMedia">Add Social Media</button>
+                    <h2>Products and Services</h2>
+                    <div id="productEntries"></div>
+                    <button type="button" id="addProduct">Add Product/Service</button>
+                    <button type="submit">Create Digital Business Card</button>
+                </form>
+                <div id="cardUrl" class="hidden">
+                    <h2>Your Digital Business Card URL:</h2>
+                    <p><a id="generatedUrl" href=""></a></p>
+                </div>
+            {% else %}
+                <p>Please <a href="{{ url_for('login') }}">login</a> to create a card.</p>
+            {% endif %}
+        </div>
+        <div class="preview-section">
+            <h2>Preview</h2>
+            <div class="preview-card">
+                <img id="previewLogo" class="preview-logo" src="#" alt="Business Logo">
+                <img id="previewProfilePic" class="preview-profile-pic" src="#" alt="Profile Picture">
+                <h3 id="previewName"></h3>
+                <p id="previewJobTitle"></p>
+                <p id="previewEmail"></p>
+                <p id="previewPhone"></p>
+                <div id="previewSocialLinks" class="preview-social-links"></div>
+                <div id="previewProducts" class="preview-products"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('businessCardForm');
+            if (!form) return; // Exit if form is not present (user not logged in)
+
+            const socialMediaEntries = document.getElementById('socialMediaEntries');
+            const productEntries = document.getElementById('productEntries');
+            const addSocialMediaBtn = document.getElementById('addSocialMedia');
+            const addProductBtn = document.getElementById('addProduct');
+
+            // Preview elements
+            const previewLogo = document.getElementById('previewLogo');
+            const previewProfilePic = document.getElementById('previewProfilePic');
+            const previewName = document.getElementById('previewName');
+            const previewJobTitle = document.getElementById('previewJobTitle');
+            const previewEmail = document.getElementById('previewEmail');
+            const previewPhone = document.getElementById('previewPhone');
+            const previewSocialLinks = document.getElementById('previewSocialLinks');
+            const previewProducts = document.getElementById('previewProducts');
+            const generatedUrl = document.getElementById('generatedUrl');
+            const cardUrl = document.getElementById('cardUrl');
+
+            // Function to update preview
+            function updatePreview() {
+                previewName.textContent = `${document.getElementById('firstName').value} ${document.getElementById('lastName').value}`;
+                previewJobTitle.textContent = document.getElementById('jobTitle').value;
+                previewEmail.textContent = document.getElementById('email').value;
+                previewPhone.textContent = document.getElementById('phone').value;
+
+                // Update social media links
+                previewSocialLinks.innerHTML = '';
+                document.querySelectorAll('.social-media-entry').forEach(entry => {
+                    const platform = entry.querySelector('select').value;
+                    const url = entry.querySelector('input[type="url"]').value;
+                    if (url) {
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.textContent = platform;
+                        link.target = '_blank';
+                        previewSocialLinks.appendChild(link);
+                    }
+                });
+
+                // Update products/services
+                previewProducts.innerHTML = '';
+                document.querySelectorAll('.product-entry').forEach(entry => {
+                    const name = entry.querySelector('input[name="productName"]').value;
+                    const description = entry.querySelector('input[name="productDescription"]').value;
+                    const url = entry.querySelector('input[name="productUrl"]').value;
+                    if (name) {
+                        const product = document.createElement('div');
+                        product.innerHTML = `<strong>${name}</strong>: ${description} <a href="${url}" target="_blank">Learn More</a>`;
+                        previewProducts.appendChild(product);
+                    }
+                });
+            }
+
+            // Function to add social media entry
+            function addSocialMediaEntry() {
+                const entry = document.createElement('div');
+                entry.className = 'social-media-entry';
+                entry.innerHTML = `
+                    <select>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Twitter">Twitter</option>
+                        <option value="LinkedIn">LinkedIn</option>
+                        <option value="TikTok">TikTok</option>
+                        <option value="YouTube">YouTube</option>
+                        <option value="Pinterest">Pinterest</option>
+                        <option value="Snapchat">Snapchat</option>
+                    </select>
+                    <input type="url" placeholder="Profile URL" required>
+                    <button type="button" class="remove-btn">Remove</button>
+                `;
+                socialMediaEntries.appendChild(entry);
+                entry.querySelector('.remove-btn').addEventListener('click', function() {
+                    entry.remove();
+                    updatePreview();
+                });
+                entry.querySelectorAll('select, input').forEach(el => {
+                    el.addEventListener('input', updatePreview);
+                });
+            }
+
+            // Function to add product/service entry
+            function addProductEntry() {
+                const entry = document.createElement('div');
+                entry.className = 'product-entry';
+                entry.innerHTML = `
+                    <input type="text" name="productName" placeholder="Product Name" required>
+                    <input type="text" name="productDescription" placeholder="Product Description" required>
+                    <input type="url" name="productUrl" placeholder="Product URL" required>
+                    <button type="button" class="remove-btn">Remove</button>
+                `;
+                productEntries.appendChild(entry);
+                entry.querySelector('.remove-btn').addEventListener('click', function() {
+                    entry.remove();
+                    updatePreview();
+                });
+                entry.querySelectorAll('input').forEach(el => {
+                    el.addEventListener('input', updatePreview);
+                });
+            }
+
+            // Event listeners for adding entries
+            addSocialMediaBtn.addEventListener('click', addSocialMediaEntry);
+            addProductBtn.addEventListener('click', addProductEntry);
+
+            // Event listeners for file uploads
+            document.getElementById('logo').addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewLogo.src = e.target.result;
+                        previewLogo.style.display = 'block';
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            document.getElementById('profilePic').addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewProfilePic.src = e.target.result;
+                        previewProfilePic.style.display = 'block';
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Event listeners for real-time preview updates
+            form.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('input', updatePreview);
+            });
+
+            // Form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                var formData = new FormData(this);
+
+                // Add social media data
+                var socialMedia = [];
+                document.querySelectorAll('.social-media-entry').forEach(entry => {
+                    socialMedia.push({
+                        platform: entry.querySelector('select').value,
+                        url: entry.querySelector('input[type="url"]').value
+                    });
+                });
+                formData.append('social_media', JSON.stringify(socialMedia));
+
+                // Add products/services data
+                var products = [];
+                document.querySelectorAll('.product-entry').forEach(entry => {
+                    products.push({
+                        name: entry.querySelector('input[name="productName"]').value,
+                        description: entry.querySelector('input[name="productDescription"]').value,
+                        url: entry.querySelector('input[name="productUrl"]').value
+                    });
+                });
+                formData.append('products_services', JSON.stringify(products));
+                
+                fetch('/api/create_card', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        generatedUrl.textContent = data.card_url;
+                        generatedUrl.href = data.card_url;
+                        cardUrl.classList.remove('hidden');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (error.message === 'Network response was not ok') {
+                        alert('An error occurred. Please make sure you are logged in and try again.');
+                    } else {
+                        alert('An error occurred while creating the card.');
+                    }
+                });
+            });
+
+            // Initial preview update
+            updatePreview();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3wc_DigiCard - Digital Business Cards</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body.light-mode {
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        body.dark-mode {
+            background-color: #333;
+            color: #f4f4f4;
+        }
+        body.third-mode {
+            background-color: #1e3d59;
+            color: #f5f0e1;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+        }
+        main, section, footer {
+            margin: 40px 0;
+        }
+        .auth-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .auth-popup.active {
+            display: block;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .overlay.active {
+            display: block;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .feature-list {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .feature-item {
+            flex-basis: 30%;
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .auth-links {
+            display: flex;
+            gap: 20px;
+        }
+        #message {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body class="light-mode">
+    <div class="container">
+        <header>
+            <h1>3wc_DigiCard</h1>
+            <div>
+                <button id="themeToggle" class="btn">Toggle Theme</button>
+                <div class="auth-links">
+                    {% if current_user.is_authenticated %}
+                        <span>Welcome, {{ current_user.username }}!</span>
+                        <a href="{{ url_for('logout') }}" class="btn">Logout</a>
+                        <a href="{{ url_for('create_card_page') }}" class="btn btn-primary">Create Card</a>
+                    {% else %}
+                        <button id="loginBtn" class="btn">Login</button>
+                        <button id="registerBtn" class="btn">Register</button>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <h2>Create Your Own Digital Business Card</h2>
+            <p>Showcase your brand, connect instantly with a tap and generate profitable leads.</p>
+            {% if not current_user.is_authenticated %}
+                <button id="getStartedBtn" class="btn btn-primary">Get Started</button>
+            {% endif %}
+        </main>
+
+        <section>
+            <h3>Key Features</h3>
+            <div class="feature-list">
+                <div class="feature-item">
+                    <h4>Customizable Templates</h4>
+                    <p>Choose from a variety of professional designs or create your own unique layout.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>Interactive Elements</h4>
+                    <p>Add clickable links, contact buttons, and social media profiles to engage your audience.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>Easy Sharing</h4>
+                    <p>Share your digital card via QR code, email, or direct link with just a few clicks.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Go Green with Digital Business Cards - Save trees and make connections!</p>
+        </footer>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="auth-popup" id="authPopup">
+        <h2 id="authTitle">Login</h2>
+        <form id="authForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+        <div id="message"></div>
+        <p id="switchAuth">Don't have an account? <a href="#" id="switchAuthLink">Register</a></p>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const authPopup = document.getElementById('authPopup');
+        const overlay = document.getElementById('overlay');
+        const authForm = document.getElementById('authForm');
+        const authTitle = document.getElementById('authTitle');
+        const switchAuth = document.getElementById('switchAuth');
+        const switchAuthLink = document.getElementById('switchAuthLink');
+        const messageDiv = document.getElementById('message');
+        let isLoginMode = true;
+
+        themeToggle.addEventListener('click', function() {
+            const body = document.body;
+            if (body.classList.contains('light-mode')) {
+                body.classList.replace('light-mode', 'dark-mode');
+            } else if (body.classList.contains('dark-mode')) {
+                body.classList.replace('dark-mode', 'third-mode');
+            } else {
+                body.classList.replace('third-mode', 'light-mode');
+            }
+        });
+
+        function showAuthPopup() {
+            overlay.classList.add('active');
+            authPopup.classList.add('active');
+        }
+
+        function hideAuthPopup() {
+            overlay.classList.remove('active');
+            authPopup.classList.remove('active');
+        }
+
+        function switchAuthMode() {
+            isLoginMode = !isLoginMode;
+            authTitle.textContent = isLoginMode ? 'Login' : 'Register';
+            switchAuth.innerHTML = isLoginMode 
+                ? 'Don\'t have an account? <a href="#" id="switchAuthLink">Register</a>'
+                : 'Already have an account? <a href="#" id="switchAuthLink">Login</a>';
+            messageDiv.textContent = '';
+        }
+
+        document.getElementById('getStartedBtn')?.addEventListener('click', showAuthPopup);
+        document.getElementById('loginBtn')?.addEventListener('click', () => {
+            isLoginMode = true;
+            switchAuthMode();
+            showAuthPopup();
+        });
+        document.getElementById('registerBtn')?.addEventListener('click', () => {
+            isLoginMode = false;
+            switchAuthMode();
+            showAuthPopup();
+        });
+
+        overlay.addEventListener('click', hideAuthPopup);
+
+        switchAuthLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchAuthMode();
+        });
+
+        authForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(authForm);
+            const url = isLoginMode ? '/login' : '/register';
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({
+                    username: formData.get('username'),
+                    password: formData.get('password')
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    if (isLoginMode) {
+                        window.location.href = '/create-card.html';  // Redirect to create card page after successful login
+                    } else {
+                        // Switch to login mode after successful registration
+                        isLoginMode = true;
+                        authTitle.textContent = 'Login';
+                        switchAuth.innerHTML = 'Don\'t have an account? <a href="#" id="switchAuthLink">Register</a>';
+                    }
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        });
+    </script>
+</body>
+</html>
